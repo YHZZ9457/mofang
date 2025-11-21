@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 多阶魔方 - 完美光照版</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            /* 径向背景：让中心稍微亮一点，四周深沉，突出主体 */
+            background: radial-gradient(circle at center, #2b2b2e 0%, #080808 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            color: #fff;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            cursor: grab;
+            display: block;
+        }
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+
+        /* --- UI 样式 --- */
+        #ui-container {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            pointer-events: none;
+            z-index: 20;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 12px 24px;
+            border-radius: 60px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* 按钮和下拉框通用样式 */
+        button, select {
+            pointer-events: auto;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e0e0e0;
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            outline: none;
+            font-family: inherit;
+            height: 40px; /* 统一高度 */
+            box-sizing: border-box;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- 下拉菜单深度美化 --- */
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            padding-right: 40px; /* 留出箭头位置 */
+            padding-left: 20px;
+            /* 绘制一个简洁的白色箭头 */
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 15px center;
+            background-color: transparent;
+        }
+
+        /* 下拉选项样式（兼容性写法，主要针对Windows） */
+        select option {
+            background-color: #1a1a1a;
+            color: #fff;
+            padding: 10px;
+        }
+
+        button:hover, select:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #fff;
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        /* 左上角说明 */
+        #instructions {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+            pointer-events: none;
+            background: rgba(0,0,0,0.4);
+            padding: 15px 20px;
+            border-radius: 12px;
+            line-height: 1.8;
+            border: 1px solid rgba(255,255,255,0.1);
+            z-index: 20;
+            backdrop-filter: blur(5px);
+        }
+        .highlight { color: #fff; font-weight: 700; }
+
+        /* 右上角设置 */
+        #settings-panel {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            width: 200px;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(12px);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            z-index: 30;
+        }
+
+        .setting-item { margin-bottom: 15px; }
+        .setting-item:last-child { margin-bottom: 0; }
+        
+        .setting-label {
+            font-size: 12px;
+            color: rgba(255,255,255,0.8);
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            margin-top: -5px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="instructions">
+        <div><span class="highlight">左键</span> 拖拽方块 = 旋转魔方层</div>
+        <div><span class="highlight">右键</span> 拖拽背景 = 自由旋转视角</div>
+        <div><span class="highlight">滚轮</span> 缩放视角</div>
+    </div>
+
+    <div id="settings-panel">
+        <div class="setting-item">
+            <div class="setting-label">
+                <span>魔方灵敏度</span>
+                <span id="val-cube">0.85</span>
+            </div>
+            <input type="range" id="input-cube-sens" min="0.2" max="2.0" step="0.05" value="0.85">
+        </div>
+        <div class="setting-item">
+            <div class="setting-label">
+                <span>视角灵敏度</span>
+                <span id="val-view">1.0</span>
+            </div>
+            <input type="range" id="input-view-sens" min="0.2" max="3.0" step="0.1" value="1.0">
+        </div>
+    </div>
+
+    <div id="ui-container">
+        <select id="select-order">
+            <option value="2">2阶 (2x2)</option>
+            <option value="3" selected>3阶 (3x3)</option>
+            <option value="4">4阶 (4x4)</option>
+            <option value="5">5阶 (5x5)</option>
+        </select>
+        <button id="btn-scramble">随机打乱</button>
+        <button id="btn-reset">重置</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { ArcballControls } from 'three/addons/controls/ArcballControls.js';
+        import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+        // --- 参数配置 ---
+        const CUBE_SIZE = 1;
+        const SPACING = 0.02; 
+        const TOTAL_SIZE = CUBE_SIZE + SPACING;
+        
+        let currentOrder = 3;
+        let cubeSensitivity = 0.85;
+        let viewSensitivity = 1.0;
+        
+        const DRAG_DEADZONE = 5;
+
+        // 优化配色 (高饱和度，易于区分)
+        const COLORS = {
+            R: 0xd50000, L: 0xff6d00, U: 0xffea00, 
+            D: 0xffffff, F: 0x2962ff, B: 0x00c853, 
+            I: 0x1a1a1a 
+        };
+
+        let scene, camera, renderer, controls;
+        let cubes = [];
+        let pivot;
+        let particleSystem;
+        
+        let isDragging = false;
+        let isSnapping = false;
+        
+        const state = {
+            startMouse: new THREE.Vector2(),
+            lastMouse: new THREE.Vector2(),
+            intersectCube: null,
+            intersectNormal: null,
+            rotateAxis: null,
+            currentGroupAngle: 0,
+            activeCubes: []
+        };
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        init();
+        animate();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // 1. 场景
+            scene = new THREE.Scene();
+            // 无 Fog，保持清晰
+            
+            // 2. 相机
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(7, 6, 9);
+            
+            // ★★★ 关键修复：将相机添加到场景中，这样挂载在相机上的光照才能正确渲染
+            scene.add(camera);
+
+            // 3. 渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // 4. 灯光系统 (头灯模式修复)
+            
+            // A. 环境光：确保阴影部分也有足够的亮度
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            
+            // B. 主光源（头灯）：绑定在 camera 上
+            // 无论你怎么旋转视角，这个光始终跟随相机，从屏幕的"右上方"打向物体
+            // 这样就永远不会看到"黑乎乎的背面"
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            mainLight.position.set(5, 10, 5); // 相对相机的坐标
+            camera.add(mainLight); // 绑定到相机！
+
+            // 5. 旋转中心 Pivot
+            pivot = new THREE.Object3D();
+            scene.add(pivot);
+
+            // 6. 背景粒子
+            createEnvironment();
+
+            // 7. 控制器
+            controls = new ArcballControls(camera, renderer.domElement, scene);
+            controls.enableAnimations = true;
+            controls.dampingFactor = 10;
+            controls.wMax = 20;
+            controls.setGizmosVisible(false);
+            controls.rotateSpeed = viewSensitivity;
+            controls.unsetMouseAction(0);
+            controls.setMouseAction('ROTATE', 2); 
+            controls.setMouseAction('ZOOM', 1);
+
+            // 8. 创建魔方
+            createRubiksCube(currentOrder);
+
+            // 9. 事件
+            setupEvents();
+        }
+
+        function createEnvironment() {
+            const particleGeo = new THREE.BufferGeometry();
+            const particleCount = 800;
+            const posArray = new Float32Array(particleCount * 3);
+            for(let i=0; i<particleCount*3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 100; 
+            }
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const particleMat = new THREE.PointsMaterial({
+                size: 0.08,
+                color: 0x666666,
+                transparent: true,
+                opacity: 0.5
+            });
+            particleSystem = new THREE.Points(particleGeo, particleMat);
+            scene.add(particleSystem);
+        }
+
+        function setupEvents() {
+            const canvas = renderer.domElement;
+            window.addEventListener('resize', onWindowResize);
+            canvas.addEventListener('mousedown', onMouseDown);
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+            document.getElementById('btn-scramble').addEventListener('click', scrambleCube);
+            document.getElementById('btn-reset').addEventListener('click', () => createRubiksCube(currentOrder));
+            
+            const selectOrder = document.getElementById('select-order');
+            selectOrder.addEventListener('change', (e) => {
+                currentOrder = parseInt(e.target.value);
+                createRubiksCube(currentOrder);
+                const dist = 6 + currentOrder * 1.2;
+                camera.position.setLength(dist);
+            });
+
+            document.getElementById('input-cube-sens').addEventListener('input', (e) => {
+                cubeSensitivity = parseFloat(e.target.value);
+                document.getElementById('val-cube').textContent = cubeSensitivity.toFixed(2);
+            });
+            document.getElementById('input-view-sens').addEventListener('input', (e) => {
+                viewSensitivity = parseFloat(e.target.value);
+                controls.rotateSpeed = viewSensitivity;
+                document.getElementById('val-view').textContent = viewSensitivity.toFixed(1);
+            });
+        }
+
+        function createRubiksCube(order) {
+            cubes.forEach(c => scene.remove(c));
+            cubes = [];
+            pivot.rotation.set(0,0,0);
+            pivot.children = [];
+
+            const bevelSize = order > 3 ? 0.04 : 0.06;
+            const geometry = new RoundedBoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE, 4, bevelSize);
+            const offset = (order - 1) / 2;
+
+            for (let x = 0; x < order; x++) {
+                for (let y = 0; y < order; y++) {
+                    for (let z = 0; z < order; z++) {
+                        
+                        const isRight = x === order - 1;
+                        const isLeft  = x === 0;
+                        const isTop   = y === order - 1;
+                        const isBottom= y === 0;
+                        const isFront = z === order - 1;
+                        const isBack  = z === 0;
+
+                        const materials = [
+                            getMat(isRight ? COLORS.R : COLORS.I),
+                            getMat(isLeft ? COLORS.L : COLORS.I),
+                            getMat(isTop ? COLORS.U : COLORS.I),
+                            getMat(isBottom ? COLORS.D : COLORS.I),
+                            getMat(isFront ? COLORS.F : COLORS.I),
+                            getMat(isBack ? COLORS.B : COLORS.I),
+                        ];
+
+                        const mesh = new THREE.Mesh(geometry, materials);
+                        mesh.position.set(
+                            (x - offset) * TOTAL_SIZE,
+                            (y - offset) * TOTAL_SIZE,
+                            (z - offset) * TOTAL_SIZE
+                        );
+                        // 魔方不需要投射阴影给自己（会显得很脏），只需要接受可能的遮挡
+                        // 在头灯模式下，关闭自身阴影能获得更干净的画面
+                        mesh.castShadow = false; 
+                        mesh.receiveShadow = true;
+                        mesh.userData = { isCube: true };
+                        scene.add(mesh);
+                        cubes.push(mesh);
+                    }
+                }
+            }
+        }
+
+        function getMat(color) {
+            return new THREE.MeshPhysicalMaterial({
+                color: color,
+                roughness: 0.3,   // 增加一点粗糙度，让光照更柔和，不那么刺眼
+                metalness: 0.0,
+                clearcoat: 0.8,   // 保留一层清漆光泽
+                clearcoatRoughness: 0.2,
+                reflectivity: 0.5
+            });
+        }
+
+        // --- 交互核心逻辑 ---
+
+        function onMouseDown(event) {
+            if (isSnapping || event.button !== 0) return;
+
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(cubes);
+
+            if (intersects.length > 0) {
+                controls.enabled = false;
+                isDragging = true;
+                
+                state.intersectCube = intersects[0].object;
+                state.intersectNormal = intersects[0].face.normal.clone()
+                    .transformDirection(state.intersectCube.matrixWorld)
+                    .round();
+
+                state.startMouse.set(event.clientX, event.clientY);
+                state.lastMouse.set(event.clientX, event.clientY);
+                state.rotateAxis = null; 
+                state.currentGroupAngle = 0;
+            }
+        }
+
+        function onMouseMove(event) {
+            if (!isDragging || isSnapping) return;
+
+            const dx = event.clientX - state.lastMouse.x;
+            const dy = event.clientY - state.lastMouse.y;
+            
+            if (!state.rotateAxis) {
+                const dist = new THREE.Vector2(event.clientX, event.clientY).distanceTo(state.startMouse);
+                if (dist < DRAG_DEADZONE) return;
+                determineAxisByProjection(new THREE.Vector2(event.clientX - state.startMouse.x, event.clientY - state.startMouse.y));
+                if (state.rotateAxis) preparePivotGroup();
+            }
+
+            if (state.rotateAxis) {
+                const screenMove = new THREE.Vector2(dx, dy);
+                const projectedTangent = getProjectedTangent(state.rotateAxis);
+                const moveAmount = screenMove.dot(projectedTangent);
+                state.currentGroupAngle += moveAmount * cubeSensitivity * 0.01;
+                pivot.rotation[state.rotateAxis] = state.currentGroupAngle;
+                pivot.updateMatrixWorld();
+            }
+
+            state.lastMouse.set(event.clientX, event.clientY);
+        }
+
+        function determineAxisByProjection(screenMoveVec) {
+            const normal = state.intersectNormal;
+            const axes = ['x', 'y', 'z'];
+            const worldAxes = { x: new THREE.Vector3(1,0,0), y: new THREE.Vector3(0,1,0), z: new THREE.Vector3(0,0,1) };
+            let maxDot = -1;
+            let bestAxis = null;
+
+            axes.forEach(axis => {
+                const axisVec = worldAxes[axis];
+                if (Math.abs(axisVec.dot(normal)) > 0.9) return;
+                const tangent3D = new THREE.Vector3().crossVectors(axisVec, normal).normalize();
+                const screenTangent = projectVectorToScreen(tangent3D, state.intersectCube.position);
+                const dot = Math.abs(screenMoveVec.clone().normalize().dot(screenTangent));
+                if (dot > maxDot) { maxDot = dot; bestAxis = axis; }
+            });
+
+            if (bestAxis && maxDot > 0.4) state.rotateAxis = bestAxis;
+        }
+
+        function getProjectedTangent(rotationAxis) {
+            const normal = state.intersectNormal;
+            const worldAxes = { x: new THREE.Vector3(1,0,0), y: new THREE.Vector3(0,1,0), z: new THREE.Vector3(0,0,1) };
+            const tangent3D = new THREE.Vector3().crossVectors(worldAxes[rotationAxis], normal).normalize();
+            return projectVectorToScreen(tangent3D, state.intersectCube.position);
+        }
+
+        function projectVectorToScreen(vector, origin) {
+            const p1 = origin.clone();
+            const p2 = origin.clone().add(vector);
+            p1.project(camera);
+            p2.project(camera);
+            return new THREE.Vector2((p2.x - p1.x) * window.innerWidth / 2, -(p2.y - p1.y) * window.innerHeight / 2).normalize();
+        }
+
+        function preparePivotGroup() {
+            const axis = state.rotateAxis;
+            const targetPos = state.intersectCube.position[axis];
+            state.activeCubes = [];
+            cubes.forEach(cube => {
+                if (Math.abs(cube.position[axis] - targetPos) < 0.1) {
+                    state.activeCubes.push(cube);
+                }
+            });
+            pivot.rotation.set(0, 0, 0);
+            pivot.position.set(0, 0, 0);
+            state.activeCubes.forEach(cube => pivot.attach(cube));
+        }
+
+        function onMouseUp() {
+            if (!isDragging) return;
+            isDragging = false;
+            controls.enabled = true;
+            if (state.rotateAxis) snapRotation();
+        }
+
+        function snapRotation() {
+            isSnapping = true;
+            const step = Math.PI / 2; 
+            const k = Math.round(state.currentGroupAngle / step);
+            const targetAngle = k * step;
+            const axis = state.rotateAxis;
+            
+            function animateSnap() {
+                const diff = targetAngle - pivot.rotation[axis];
+                if (Math.abs(diff) < 0.005) {
+                    pivot.rotation[axis] = targetAngle;
+                    pivot.updateMatrixWorld();
+                    finishRotation();
+                    return;
+                }
+                pivot.rotation[axis] += diff * 0.3; 
+                requestAnimationFrame(animateSnap);
+            }
+            animateSnap();
+        }
+
+        function finishRotation() {
+            state.activeCubes.forEach(cube => {
+                scene.attach(cube);
+                cube.position.x = Math.round(cube.position.x / TOTAL_SIZE) * TOTAL_SIZE;
+                cube.position.y = Math.round(cube.position.y / TOTAL_SIZE) * TOTAL_SIZE;
+                cube.position.z = Math.round(cube.position.z / TOTAL_SIZE) * TOTAL_SIZE;
+                const e = cube.matrixWorld.elements;
+                [0,1,2,4,5,6,8,9,10].forEach(i => e[i] = Math.round(e[i]));
+                cube.matrixWorld.decompose(cube.position, cube.quaternion, cube.scale);
+                cube.updateMatrixWorld();
+            });
+            isSnapping = false;
+            state.rotateAxis = null;
+            state.activeCubes = [];
+            state.currentGroupAngle = 0;
+        }
+
+        function scrambleCube() {
+            if (isSnapping || isDragging) return;
+            const axes = ['x', 'y', 'z'];
+            const step = Math.PI / 2;
+            let moveCount = 0;
+            const totalMoves = 20 + currentOrder * 2;
+
+            function nextMove() {
+                if(moveCount >= totalMoves) return;
+                const axis = axes[Math.floor(Math.random() * 3)];
+                const randomCube = cubes[Math.floor(Math.random() * cubes.length)];
+                const layerPos = randomCube.position[axis];
+                const dir = Math.random() > 0.5 ? 1 : -1;
+                const turns = Math.random() > 0.8 ? 2 : 1; 
+
+                const activeCubes = cubes.filter(c => Math.abs(c.position[axis] - layerPos) < 0.1);
+                pivot.rotation.set(0,0,0);
+                activeCubes.forEach(c => pivot.attach(c));
+                pivot.rotation[axis] = dir * turns * step;
+                pivot.updateMatrixWorld();
+                
+                activeCubes.forEach(c => {
+                    scene.attach(c);
+                    c.position.x = Math.round(c.position.x / TOTAL_SIZE) * TOTAL_SIZE;
+                    c.position.y = Math.round(c.position.y / TOTAL_SIZE) * TOTAL_SIZE;
+                    c.position.z = Math.round(c.position.z / TOTAL_SIZE) * TOTAL_SIZE;
+                    const e = c.matrixWorld.elements;
+                    [0,1,2,4,5,6,8,9,10].forEach(k => e[k] = Math.round(e[k]));
+                    c.matrixWorld.decompose(c.position, c.quaternion, c.scale);
+                    c.updateMatrixWorld();
+                });
+                moveCount++;
+                setTimeout(nextMove, 10); 
+            }
+            nextMove();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            if(particleSystem) particleSystem.rotation.y += 0.0003;
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
